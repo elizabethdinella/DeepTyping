@@ -1,8 +1,19 @@
 import os
+from openpyxl import Workbook, load_workbook
 
 ANY_TOKEN = "$any$"
 NULL_TOKEN = "O"
 
+book = Workbook() 
+sheet = book.active
+sheet.title = "UserAnnotations"
+
+sheet.cell(row=1, column=1).value =  "Filename"
+sheet.cell(row=1, column=2).value =  "Precision"
+sheet.cell(row=1, column=3).value =  "Recall"
+
+
+file_itr = 2
 for root, dirs, files in os.walk("data/Repos-cleaned"):
 	for file in files:
 		if file.endswith(".ttokens"):
@@ -54,5 +65,13 @@ for root, dirs, files in os.walk("data/Repos-cleaned"):
 			except:
 				recall = 0
 
-			print(filename_y, "precision", precision, "recall", recall)
+			sheet.cell(row=file_itr, column=1).value = filename_y 
+			sheet.cell(row=file_itr, column=2).value = precision 
+			sheet.cell(row=file_itr, column=3).value = recall 
+			
+#			print(filename_y, "precision", precision, "recall", recall)
+
+			file_itr += 1
+
+book.save("results.xlsx")
 
