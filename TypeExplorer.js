@@ -10,9 +10,9 @@ var removableLexicalKinds = [
 	ts.SyntaxKind.WhitespaceTrivia
 ];
 
-let root = "data/Repos-cleaned";
+let root = "data/Repos";
 
-const NUM_FILES_TO_EXPLORE = 10;
+const NUM_FILES_TO_EXPLORE = 4000;
 let num_files_explored = 0;
 let outerObj = {
 	"files": []	
@@ -74,7 +74,8 @@ function extractAlignedSequences(inputDirectory, fileObjs) {
 			let cantInfer = [];
 			let canInfer = [];
 			let canInferNames = [];
-			extractTokens(sourceFile, checker, cantInfer, canInfer, canInferNames);
+			let cantInferNames = [];
+			extractTokens(sourceFile, checker, cantInfer, canInfer, canInferNames, cantInferNames, sourceFile);
 			num_files_explored += 1;
 			//console.log(cantInfer.length)
 
@@ -96,7 +97,7 @@ function extractAlignedSequences(inputDirectory, fileObjs) {
 
 }
 
-function extractTokens(tree, checker, cantInfer, canInfer, canInferNames) {
+function extractTokens(tree, checker, cantInfer, canInfer, canInferNames, cantInferNames, sourceFile) {
 	const keywords = ["async", "await", "break", "continue", "class", "extends", "constructor", "super", "extends", "const", "let", "var", "debugger", "delete", "do", "while", "export", "import", "for", "each", "in", "of", "function", "return", "get", "set", "if", "else", "instanceof", "typeof", "null", "undefined", "switch", "case", "default", "this", "true", "false", "try", "catch", "finally", "void", "yield", "any", "boolean", "null", "never", "number", "string", "symbol", "undefined", "void", "as", "is", "enum", "type", "interface", "abstract", "implements", "static", "readonly", "private", "protected", "public", "declare", "module", "namespace", "require", "from", "of", "package"];
 
 	for (var i in tree.getChildren()) {
@@ -108,7 +109,7 @@ function extractTokens(tree, checker, cantInfer, canInfer, canInferNames) {
 		}
 		if (child.getChildCount() == 0) {
 			var source = child.getText();
-			if(cantInfer.indexOf(source) >= 0 || keywords.indexOf(source) >= 0 || canInfer.indexOf(source) >= 0) continue;
+			if(cantInferNames.indexOf(source) >= 0 || keywords.indexOf(source) >= 0 || canInferNames.indexOf(source) >= 0) continue;
 
 			if (child.kind === ts.SyntaxKind.Identifier) {
 				try {
@@ -120,14 +121,23 @@ function extractTokens(tree, checker, cantInfer, canInfer, canInferNames) {
 					}
 
 					let type = checker.typeToString(checker.getTypeOfSymbolAtLocation(symbol, child));
+					let line = sourceFile.getLineAndCharacterOfPosition(child.getStart()).line;
 					if (type === "any") {
 						//console.log("can't infer type of identifier: ", source);
-						cantInfer.push(source);
+						var untyped_ident = {
+							"name": source, 
+							"parent": child.parent.kind,
+							"line": line
+						}
+						cantInfer.push(untyped_ident);
+						cantInferNames.push(source);
 					} 
 					else {
 						var typed_ident = {
 							"name": source,
-							"type":	type
+							"type":	type,
+							"parent": child.parent.kind,
+							"line": line
 						}
 						canInfer.push(typed_ident);
 						canInferNames.push(source);
@@ -137,7 +147,7 @@ function extractTokens(tree, checker, cantInfer, canInfer, canInferNames) {
 				catch (e) { }
 			}
 		}
-		extractTokens(child, checker, cantInfer, canInfer, canInferNames);
+		extractTokens(child, checker, cantInfer, canInfer, canInferNames, cantInferNames, sourceFile);
 	}
 }
 
@@ -151,7 +161,7 @@ function walkSync(dir, filelist) {
 			if (file != ".git")
 			filelist = walkSync(dir + '/' + file, filelist);
 			}
-			else if (file.endsWith('.js') || file.endsWith('.ts')) {
+			else if (file.endsWith('.js') /*|| file.endsWith('.ts')*/) {
 			if (fs.statSync(fullPath).size < 1*1000*1000)
 			filelist.push(fullPath);
 			}
