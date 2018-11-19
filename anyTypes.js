@@ -366,15 +366,32 @@ const  SyntaxKind = [
 
 function printAll(myObj){
 	allParents = [];
+	var totalTyped = 0;
+	//var totalTypeof = 0;
 	myObj.files.forEach(function(fileObj){
 		console.log(fileObj.filename);
 		fileObj.untyped_idents.forEach(function(ident){
 			console.log("\t",ident.name, SyntaxKind[ident.parent], ident.line);
 			allParents.push(ident.parent);
 		});	
+
+		/*
+		fileObj.typed_idents.forEach(function(ident){
+			if(ident.type.startsWith("typeof")){
+				totalTypeof += 1;	
+			}
+		});
+
+		*/
+		totalTyped += fileObj.typed_idents.length;
 	});
 
 	maxParent(allParents);
+	var total = (totalTyped+ allParents.length);
+	console.log("total typed", totalTyped);
+	console.log("percent untyped:", allParents.length / total * 100);
+	//console.log("precent typeof:", totalTypeof / total * 100);
+	console.log("precent typed:", totalTyped / total * 100);
 }
 
 function maxParent(allParents){
@@ -396,7 +413,7 @@ function maxParent(allParents){
 	}
 
 	console.log(kinds);
-	console.log("total", allParents.length);
+	console.log("total untyped", allParents.length);
 	//result = allParents.filter(elem => elem == 235);
 	//console.log(result.length);
 	//const sortedKinds = new Map([kinds.entries()].sort((a,b)=> b[1] - a[1]));
