@@ -65,6 +65,17 @@ console.log("sanity check:");
 console.log("same num files analyzed:", num_files_explored === num_files_explored_JS);
 console.log("same files:", "fix this");
 
+console.log("\ntsfiles");
+outerObj.files.forEach(function(fileObj){
+	console.log(fileObj.filename);
+});
+
+console.log("\njsfiles");
+outerObjJS.files.forEach(function(fileObj){
+	console.log(fileObj.filename);
+});
+
+
 
 /*
 if(outerObj.files.length > 0){
@@ -88,15 +99,15 @@ function traverse(dir, _outerObj, _outerObjJS, numFilesExplored, numFilesExplore
 	if (children.find(value => value == "tsconfig.json")) {
 		// We extract two aligned sequences: the 'true' ones from the initial pass and the tsc+CheckJS derived ones from this pass (without true annotations)
 
-		const tsFilesAnalyzed = new Map();
 		//console.log("traverse", numFilesExplored);
 		if (numFilesExplored < NUM_FILES_TO_EXPLORE) {
 			let fileObjs = [];
-			numFilesExplored = extractAlignedSequences(dir, fileObjs, tsFilesAnalyzed, numFilesExplored);
+			let tsFilesAnalyzedObj = {"tsFilesAnalyzed": new Map()};
+			numFilesExplored = extractAlignedSequences(dir, fileObjs, tsFilesAnalyzedObj, numFilesExplored);
 			_outerObj.files = _outerObj.files.concat(fileObjs);
 			
 			let jsFileObjs = [];
-			numFilesExploredJS = extractAlignedSequencesJS(dir, jsFileObjs, tsFilesAnalyzed, numFilesExploredJS);
+			numFilesExploredJS = extractAlignedSequencesJS(dir, jsFileObjs, tsFilesAnalyzedObj, numFilesExploredJS);
 			_outerObjJS.files =_outerObjJS.files.concat(jsFileObjs);
 		}else {
 			return [numFilesExplored, numFilesExploredJS];
@@ -165,16 +176,17 @@ function extractHelper(inputDirectory, files, fileObjs, numFilesExplored){
 
 function extractAlignedSequencesJS(inputDirectory, fileObjs, tsFilesAnalyzed, numFilesExplored_js) {
 	let files = [];
-	walkSyncJS(inputDirectory, files, tsFilesAnalyzed);
+	console.log("TsFilesAnalyzed", tsFilesAnalyzed.tsFilesAnalyzed);
+	walkSyncJS(inputDirectory, files, tsFilesAnalyzed.tsFilesAnalyzed, 0);
 	//console.log("Extract js");
 	//console.log(files);
 	return extractHelper(inputDirectory, files, fileObjs, numFilesExplored_js);
 }
 
-function extractAlignedSequences(inputDirectory, fileObjs, tsFilesAnalyzed, numFilesExplored) {
+function extractAlignedSequences(inputDirectory, fileObjs, tsFilesAnalyzedObj, numFilesExplored) {
 	let files = [];
-	walkSync(inputDirectory, files);
-	tsFilesAnalyzed.set(inputDirectory, files);
+	walkSync(inputDirectory, files, {"count": 0}, tsFilesAnalyzedObj);
+	console.log("Walk sync gave us", files.length, "files");
 	//console.log("Extract ts");
 	return extractHelper(inputDirectory, files, fileObjs, numFilesExplored);
 }
@@ -206,7 +218,6 @@ function extractTokens(tree, checker, cantInfer, canInfer, canInferNames, cantIn
 					if (!symbol) {
 
 						if(cantInferNames.indexOf(source) >= 0) continue;
-						//console.log("can't infer type of identifier because symbol doesn't exist?: ", source);
 						var untyped_ident = {
 							"name": source, 
 							"parent": child.parent.kind,
@@ -223,7 +234,6 @@ function extractTokens(tree, checker, cantInfer, canInfer, canInferNames, cantIn
 
 					let type = checker.typeToString(checker.getTypeOfSymbolAtLocation(symbol, child));
 					if (type === "any") {
-						//console.log("can't infer type of identifier: ", source);
 						var untyped_ident = {
 							"name": source, 
 							"parent": child.parent.kind,
@@ -252,48 +262,73 @@ function extractTokens(tree, checker, cantInfer, canInfer, canInferNames, cantIn
 }
 
 //returns js counter parts
-function walkSyncJS(dir, filelist, tsFilesAnalyzed){
+function walkSyncJS(dir, filelist, tsFilesAnalyzed, count){
 	var fs = fs || require('fs'), files = fs.readdirSync(dir);
 	filelist = filelist || [];
-	files.forEach(function (file) {
+	let tsFiles = tsFilesAnalyzed.get(dir);
+	console.log(dir, tsFiles.length);
+
+	for(let i=0; i<files.length; i++){
+		let file = files[i];
+		if (count >= NUM_FILES_TO_EXPLORE) break;
 		let fullPath = path.join(dir, file);
 		try {
 			if (fs.statSync(fullPath).isDirectory()) {
 				if (file != ".git")
-				filelist = walkSyncJS(dir + '/' + file, filelist);
+				filelist = walkSyncJS(dir + '/' + file, filelist, tsFilesAnalyzed, count);
 			}
-			
-			else if (file.startsWith(file.slice(0, -3)) && file.endsWith('.js')) {
-				if (fs.statSync(fullPath).size < 1*1000*1000)
+			else if (file.endsWith('.js') && tsFiles.length > 0) {
+				let flag = false;
+				console.log("walk here");
+				for(let j=0; j<tsFiles.length; j++){
+					let tsFile = tsFiles[j].slice(0, -3);
+					console.log("here", tsFile);
+					if(file.startsWith(tsFile)){
+						flag = true;
+						break;
+					}
+				}
+
+				if (flag && fs.statSync(fullPath).size < 1*1000*1000)
 					filelist.push(fullPath);
+					count += 1;
 				}
 		}
 		catch (e) {
 			//console.error("Error processing " + file);
 		}
-	});
+	}
 	return filelist;
 }
 
-function walkSync(dir, filelist) {
+function walkSync(dir, filelist, countObj, tsFilesAnalyzedObj) {
 	var fs = fs || require('fs'), files = fs.readdirSync(dir);
 	filelist = filelist || [];
-	files.forEach(function (file) {
+	for(let i=0; i<files.length; i++){
+		let file = files[i];
+		if (countObj.count >= NUM_FILES_TO_EXPLORE) break;
 		let fullPath = path.join(dir, file);
 		try {
 			if (fs.statSync(fullPath).isDirectory()) {
 				if (file != ".git")
-				filelist = walkSync(dir + '/' + file, filelist);
+				filelist = walkSync(dir + '/' + file, filelist, countObj, tsFilesAnalyzedObj);
 			}
 			else if (file.endsWith('.ts')) {
 				if (fs.statSync(fullPath).size < 1*1000*1000)
 					filelist.push(fullPath);
+					countObj.count += 1;
+					if(tsFilesAnalyzedObj.tsFilesAnalyzed.get(dir).length > 0){
+						tsFilesAnalyzedObj.tsFilesAnalyzed.get(dir).push(fullPath);
+					}else{
+
+						tsFilesAnalyzedObj.tsFilesAnalyzed.set(dir, [fullPath]);
+					}
 				}
 		}
 		catch (e) {
 			//console.error("Error processing " + file);
 		}
-	});
+	}
 	return filelist;
 }
 ;
