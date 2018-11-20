@@ -16,7 +16,7 @@ var removableLexicalKinds = [
 let root = "data/Repos";
 
 //const NUM_FILES_TO_EXPLORE = 4000;
-const NUM_FILES_TO_EXPLORE = 9;
+const NUM_FILES_TO_EXPLORE = 300;
 
 var num_files_explored = 0;
 
@@ -81,9 +81,9 @@ console.log("percentages add up to 100", pTyped + pUntyped === 100 && pTyped_JS 
 console.log("same num files analyzed:", numFiles=== numFilesJS);
 console.log("ts:", numFiles);
 console.log("js:", numFilesJS);
-console.log("same files:",arraysEqual(tsFnames, jsFnames));
 console.log("all js files end in .js", extensionCheck(jsFnames, "js"))
 console.log("all ts files end in .ts", extensionCheck(tsFnames, "ts"))
+console.log("same files:",arraysEqual(tsFnames, jsFnames));
 
 function extensionCheck(names, ext){
 	for(let i=0; i<names.length; ++i){
@@ -100,25 +100,25 @@ function arraysEqual(a, b) {
   if (a.length != b.length) return false;
 
   for(let i=0; i < a.length; ++i){
-  	let idx = a[i].indexOf("data");
-	let idx2 = b[i].indexOf("data");
-	if(idx <0 || idx2 < 0){
-		console.log("invalid path");
-	}
-	a[i] = a[i].slice(idx);
-	b[i] = b[i].slice(idx2);
+
+	a[i] = a[i].slice(0,-2);
+	b[i] = b[i].slice(0,-2);
 
   }
 
-  a.sort();
-  b.sort();
+ a.sort();
+ b.sort();
+
 
   for (var i = 0; i < a.length; ++i) {
-    if (a[i].slice(0,-3) !== b[i].slice(0,-3)){
-		console.log("don't match!", a[i], b[i]);
+    if (a[i] !== b[i]){
+	        if(b.indexOf(a[i]) < 0){
+			console.log("no match for", a[i]);
+		}
 		return false;
 	}
   }
+
   return true;
 }
 
@@ -163,6 +163,26 @@ function traverse(dir, _outerObj, _outerObjJS, numFilesExplored) {
 			numFilesExplored = extractAlignedSequences(dir, fileObjs, jsFileObjs, numFilesExplored);
 			_outerObj.files = _outerObj.files.concat(fileObjs);
 			_outerObjJS.files =_outerObjJS.files.concat(jsFileObjs);
+
+			let files = [];
+			let jsFiles = [];
+			
+			fileObjs.forEach(function(file){
+				files.push(file.filename);	
+			});
+
+			jsFileObjs.forEach(function(file){
+				jsFiles.push(file.filename);
+			});
+
+
+			console.log();
+			console.log("second midway sanity check");
+			console.log("same num files", files.length === jsFiles.length);
+			console.log("same files", arraysEqual(files.slice(), jsFiles.slice()));
+			console.log();
+
+
 		}else {
 			return numFilesExplored;
 		}
@@ -183,11 +203,11 @@ function inFiles(files, filename){
 			continue;
 		}
 
-		file = file.slice(idx, -2);
-		let fname = filename.slice(idx2, -2);
+		file = file.slice(idx);
+		let fname = filename.slice(idx2);
 
 		if(file === fname){
-			return true;	
+			return file;	
 		}
 	}
 	return false;
@@ -210,13 +230,14 @@ function extractHelper(inputDirectory, files, fileObjs, numFilesExplored){
 
 		let filename = sourceFile.getSourceFile().fileName;
 
-		if(!inFiles(files, filename)) continue;
+		let check = inFiles(files, filename);
+		if(!check) continue;
 		if (filename.endsWith('.d.ts')) continue;
 
 		try {
 			let relativePath = path.relative(inputDirectory, filename);
 			if (relativePath.startsWith("..")) continue;
-			if (numFilesExplored >= NUM_FILES_TO_EXPLORE) return numFilesExplored;
+			//if (numFilesExplored >= NUM_FILES_TO_EXPLORE) return numFilesExplored;
 
 			let cantInfer = [];
 			let canInfer = [];
@@ -224,9 +245,9 @@ function extractHelper(inputDirectory, files, fileObjs, numFilesExplored){
 			let cantInferNames = [];
 
 			extractTokens(sourceFile, checker, cantInfer, canInfer, canInferNames, cantInferNames, sourceFile);
-			numFilesExplored += 1;
+			//numFilesExplored += 1;
 			var obj = {
-				"filename": filename,
+				"filename": check,
 				"typed_idents":  canInfer,
 				"untyped_idents": cantInfer
 			}
@@ -245,9 +266,53 @@ function extractAlignedSequences(inputDirectory, fileObjs, fileObjsJS, numFilesE
 	let jsFiles = [];
 	walkSync(inputDirectory, files, jsFiles, {"count": 0});
 
+	
+	console.log();
+	console.log("midway sanity check");
+	console.log("same num files", files.length === jsFiles.length);
+	console.log("same files", arraysEqual(files.slice(), jsFiles.slice()));
+	console.log();
+
 	console.log("explored", numFilesExplored, "files");
+	jsFiles.sort();
+	files.sort();
 	extractHelper(inputDirectory, jsFiles, fileObjsJS, numFilesExplored);
-	return extractHelper(inputDirectory, files, fileObjs, numFilesExplored);
+
+
+	fileObjsJS.forEach(function(fileObj){
+		let flag = false;
+		for(var i=0; i<jsFiles.length; i++){
+			if(fileObj.filename === jsFiles[i]) {
+				flag = true;
+				break;
+			}
+		}
+		if(!flag){
+			console.log("no match for", fileObj.filename);	
+		}
+	});
+	
+	let num =  extractHelper(inputDirectory, files, fileObjs, numFilesExplored);
+	
+	fileObjs.forEach(function(fileObj){
+		let flag = false;
+		for(var i=0; i<files.length; i++){
+			let idx = fileObj.filename.indexOf("data");
+	
+			fileObj.filename = fileObj.filename.slice(idx);
+
+			if(fileObj.filename === files[i]) {
+				flag = true;
+				break;
+			}
+		}
+		if(!flag){
+			console.log("no match for", fileObj.filename);	
+		}
+	});
+
+
+	return numFilesExplored + files.length;
 }
 
 function extractTokens(tree, checker, cantInfer, canInfer, canInferNames, cantInferNames, sourceFile) {
@@ -328,7 +393,8 @@ function walkSync(dir, filelist, jsfilelist, countObj){
 		if (countObj.count >= NUM_FILES_TO_EXPLORE) break;
 		let fullPath = path.join(dir, file);
 		try {
-			let strippedName = fullPath.slice(0,-2);
+		        let idx = fullPath.indexOf("data");
+			let strippedName = fullPath.slice(idx,-2);
 			let jsName = strippedName + "js";
 
 			if (fs.statSync(fullPath).isDirectory()) {
@@ -340,7 +406,6 @@ function walkSync(dir, filelist, jsfilelist, countObj){
 			else if (file.endsWith('.ts') && !file.endsWith('.d.ts') && fs.existsSync(jsName) && fs.statSync(fullPath).size < 1*1000*1000){
 				filelist.push(fullPath);
 				jsfilelist.push(jsName);
-
 				countObj.count += 1;
 
 			}
