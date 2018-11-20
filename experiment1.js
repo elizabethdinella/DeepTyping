@@ -15,11 +15,10 @@ var removableLexicalKinds = [
 
 let root = "data/Repos";
 
-const NUM_FILES_TO_EXPLORE = 4000;
-//const NUM_FILES_TO_EXPLORE = 100;
+//const NUM_FILES_TO_EXPLORE = 4000;
+const NUM_FILES_TO_EXPLORE = 9;
 
 var num_files_explored = 0;
-var num_files_explored_JS = 0;
 
 let outerObj = {
 	"files": []	
@@ -42,16 +41,20 @@ let numUntyped_JS = 0;
 let tsFnames = [];
 let jsFnames = [];
 
+let numFiles = 0;
+let numFilesJS = 0;
 outerObj.files.forEach(function(fileObj){
 	numTyped += fileObj.typed_idents.length;
 	numUntyped += fileObj.untyped_idents.length;
 	tsFnames.push(fileObj.filename);
+	numFiles += 1;
 });
 
 outerObjJS.files.forEach(function(fileObj){
 	numTyped_JS += fileObj.typed_idents.length;
 	numUntyped_JS += fileObj.untyped_idents.length;
 	jsFnames.push(fileObj.filename);
+	numFilesJS += 1;
 });
 
 
@@ -75,9 +78,9 @@ console.log();
 
 console.log("sanity check:");
 console.log("percentages add up to 100", pTyped + pUntyped === 100 && pTyped_JS + pUntyped_JS === 100);
-console.log("same num files analyzed:", num_files_explored === num_files_explored_JS);
-console.log("ts:", num_files_explored);
-console.log("js:", num_files_explored_JS);
+console.log("same num files analyzed:", numFiles=== numFilesJS);
+console.log("ts:", numFiles);
+console.log("js:", numFilesJS);
 console.log("same files:",arraysEqual(tsFnames, jsFnames));
 console.log("all js files end in .js", extensionCheck(jsFnames, "js"))
 console.log("all ts files end in .ts", extensionCheck(tsFnames, "ts"))
@@ -96,11 +99,25 @@ function arraysEqual(a, b) {
   if (a == null || b == null) return false;
   if (a.length != b.length) return false;
 
+  for(let i=0; i < a.length; ++i){
+  	let idx = a[i].indexOf("data");
+	let idx2 = b[i].indexOf("data");
+	if(idx <0 || idx2 < 0){
+		console.log("invalid path");
+	}
+	a[i] = a[i].slice(idx);
+	b[i] = b[i].slice(idx2);
+
+  }
+
   a.sort();
   b.sort();
 
   for (var i = 0; i < a.length; ++i) {
-    if (a[i].slice(0,-3) !== b[i].slice(0,-3)) return false;
+    if (a[i].slice(0,-3) !== b[i].slice(0,-3)){
+		console.log("don't match!", a[i], b[i]);
+		return false;
+	}
   }
   return true;
 }
@@ -130,41 +147,55 @@ function traverseProject(org, project, _outerObj, _outerObjJS) {
 	if (org == "SAP") return
 		let dir = root + "/" + org + "/" + project;
 	if(num_files_explored < NUM_FILES_TO_EXPLORE){
-		let exp_nums = traverse(dir, _outerObj, _outerObjJS, num_files_explored, num_files_explored_JS);
-		num_files_explored = exp_nums[0];
-		num_files_explored_JS = exp_nums[1];
+		num_files_explored = traverse(dir, _outerObj, _outerObjJS, num_files_explored);
 	}
 }
 
-function traverse(dir, _outerObj, _outerObjJS, numFilesExplored, numFilesExploredJS) {
+function traverse(dir, _outerObj, _outerObjJS, numFilesExplored) {
 	var children = fs.readdirSync(dir);
 	if (children.find(value => value == "tsconfig.json")) {
-		// We extract two aligned sequences: the 'true' ones from the initial pass and the tsc+CheckJS derived ones from this pass (without true annotations)
 
 		//console.log("traverse", numFilesExplored);
 		if (numFilesExplored < NUM_FILES_TO_EXPLORE) {
 			let fileObjs = [];
-
-			let tsFilesAnalyzedObj = {"tsFilesAnalyzed": new Map()};
-			numFilesExplored = extractAlignedSequences(dir, fileObjs, tsFilesAnalyzedObj, numFilesExplored);
-			_outerObj.files = _outerObj.files.concat(fileObjs);
-			
 			let jsFileObjs = [];
-			numFilesExploredJS = extractAlignedSequencesJS(dir, jsFileObjs, tsFilesAnalyzedObj, numFilesExploredJS);
+
+			numFilesExplored = extractAlignedSequences(dir, fileObjs, jsFileObjs, numFilesExplored);
+			_outerObj.files = _outerObj.files.concat(fileObjs);
 			_outerObjJS.files =_outerObjJS.files.concat(jsFileObjs);
 		}else {
-			return [numFilesExplored, numFilesExploredJS];
+			return numFilesExplored;
 		}
 	}
 
-	return [numFilesExplored, numFilesExploredJS];
+	return numFilesExplored;
+}
+
+function inFiles(files, filename){
+	for(let i=0; i<files.length; i++){
+		let file = files[i];	
+		let idx = file.indexOf("data");
+		let idx2 = filename.indexOf("data");
+
+		if(idx2 < 0) return false;
+		if(idx < 0){
+			console.log("invalid path", idx, idx2);
+			continue;
+		}
+
+		file = file.slice(idx, -2);
+		let fname = filename.slice(idx2, -2);
+
+		if(file === fname){
+			return true;	
+		}
+	}
+	return false;
 }
 
 function extractHelper(inputDirectory, files, fileObjs, numFilesExplored){
-	//console.log("in extract helper", files);
 	let options = { target: ts.ScriptTarget.Latest, module: ts.ModuleKind.CommonJS, checkJs: true, allowJs: true }
 	let program = ts.createProgram(files, options);
-
 
 	let checker = null;
 	try {
@@ -177,19 +208,15 @@ function extractHelper(inputDirectory, files, fileObjs, numFilesExplored){
 	//For each of the programs we rely on 
 	for (const sourceFile of program.getSourceFiles()) {
 
-
 		let filename = sourceFile.getSourceFile().fileName;
 
-		if(files.indexOf(filename) < 0) continue;
+		if(!inFiles(files, filename)) continue;
 		if (filename.endsWith('.d.ts')) continue;
 
 		try {
-
 			let relativePath = path.relative(inputDirectory, filename);
 			if (relativePath.startsWith("..")) continue;
 			if (numFilesExplored >= NUM_FILES_TO_EXPLORE) return numFilesExplored;
-
-			console.log("checking filename: ", filename);
 
 			let cantInfer = [];
 			let canInfer = [];
@@ -213,36 +240,13 @@ function extractHelper(inputDirectory, files, fileObjs, numFilesExplored){
 	return numFilesExplored;
 }
 
-
-function extractAlignedSequencesJS(inputDirectory, fileObjs, tsFilesAnalyzed, numFilesExplored_js) {
+function extractAlignedSequences(inputDirectory, fileObjs, fileObjsJS, numFilesExplored) {
 	let files = [];
-	//console.log("tsFilesAnalyzed", tsFilesAnalyzed.tsFilesAnalyzed);
-	walkSyncJS(inputDirectory, files, tsFilesAnalyzed.tsFilesAnalyzed, 0);
-	//console.log("Extract js");
-	//console.log(files);
-	//console.log("JS");
-	return extractHelper(inputDirectory, files, fileObjs, numFilesExplored_js);
-}
+	let jsFiles = [];
+	walkSync(inputDirectory, files, jsFiles, {"count": 0});
 
-function extractAlignedSequences(inputDirectory, fileObjs, tsFilesAnalyzedObj, numFilesExplored) {
-	let files = [];
-	console.log("before walk sync:", tsFilesAnalyzedObj);
-	walkSync(inputDirectory, files, {"count": 0}, tsFilesAnalyzedObj);
-	console.log("Walk sync gave us", files.length, "files");
-
-	for(var i=0; i<files.length; i++) {
-		let file = files[i];
-		let strippedName = file.slice(0,-2);
-		let jsName = strippedName + ".js";
-		if(!fs.existsSync(jsName)){
-			console.log("generating js file");
-			exec("tsc" + file);
-			console.log("generated js file");
-		}
-	}
-
-	//console.log("tsFilesanalyzed length should be the same", tsFilesAnalyzedObj);
-	//console.log("Extract ts");
+	console.log("explored", numFilesExplored, "files");
+	extractHelper(inputDirectory, jsFiles, fileObjsJS, numFilesExplored);
 	return extractHelper(inputDirectory, files, fileObjs, numFilesExplored);
 }
 
@@ -316,46 +320,7 @@ function extractTokens(tree, checker, cantInfer, canInfer, canInferNames, cantIn
 	}
 }
 
-//returns js counter parts
-function walkSyncJS(dir, filelist, tsFilesAnalyzed, count){
-	var fs = fs || require('fs'), files = fs.readdirSync(dir);
-	filelist = filelist || [];
-	let tsFiles = tsFilesAnalyzed.get(dir);
-	//if(tsFiles) console.log(dir, tsFiles.length);
-
-	for(let i=0; i<files.length; i++){
-		let file = files[i];
-		if (count >= NUM_FILES_TO_EXPLORE) break;
-		let fullPath = path.join(dir, file);
-		try {
-			if (fs.statSync(fullPath).isDirectory()) {
-				if (file != ".git")
-				filelist = walkSyncJS(dir + '/' + file, filelist, tsFilesAnalyzed, count);
-			}
-			else if (fullPath.endsWith('.js') && tsFiles.length > 0) {
-				let flag = false;
-				for(let j=0; j<tsFiles.length; j++){
-					let tsFile = tsFiles[j].slice(0, -3);
-					//console.log("file vs tsfile", fullPath, tsFile);
-					if(fullPath.startsWith(tsFile)){
-						flag = true;
-						break;
-					}
-				}
-
-				if (flag && fs.statSync(fullPath).size < 1*1000*1000)
-					filelist.push(fullPath);
-					count += 1;
-				}
-		}
-		catch (e) {
-			//console.error("Error processing " + file);
-		}
-	}
-	return filelist;
-}
-
-function walkSync(dir, filelist, countObj, tsFilesAnalyzedObj) {
+function walkSync(dir, filelist, jsfilelist, countObj){
 	var fs = fs || require('fs'), files = fs.readdirSync(dir);
 	filelist = filelist || [];
 	for(let i=0; i<files.length; i++){
@@ -363,27 +328,27 @@ function walkSync(dir, filelist, countObj, tsFilesAnalyzedObj) {
 		if (countObj.count >= NUM_FILES_TO_EXPLORE) break;
 		let fullPath = path.join(dir, file);
 		try {
+			let strippedName = fullPath.slice(0,-2);
+			let jsName = strippedName + "js";
+
 			if (fs.statSync(fullPath).isDirectory()) {
 				if (file != ".git")
-				filelist = walkSync(dir + '/' + file, filelist, countObj, tsFilesAnalyzedObj);
+				var out = walkSync(dir + '/' + file, filelist, jsfilelist, countObj);
+				filelist = out[0];
+				jsfilelist = out[1];
 			}
-			else if (file.endsWith('.ts')) {
-				if (fs.statSync(fullPath).size < 1*1000*1000)
-					filelist.push(fullPath);
-					countObj.count += 1;
+			else if (file.endsWith('.ts') && !file.endsWith('.d.ts') && fs.existsSync(jsName) && fs.statSync(fullPath).size < 1*1000*1000){
+				filelist.push(fullPath);
+				jsfilelist.push(jsName);
 
-					if(tsFilesAnalyzedObj.tsFilesAnalyzed.get(dir) && tsFilesAnalyzedObj.tsFilesAnalyzed.get(dir).length > 0){
-						tsFilesAnalyzedObj.tsFilesAnalyzed.get(dir).push(fullPath);
-					}else{
-						tsFilesAnalyzedObj.tsFilesAnalyzed.set(dir, [fullPath]);
-					}
-					
-				}
+				countObj.count += 1;
+
+			}
 		}
 		catch (e) {
 			//console.error("Error processing " + file);
 		}
 	}
-	return filelist;
+	return [filelist, jsfilelist];
 }
 ;
