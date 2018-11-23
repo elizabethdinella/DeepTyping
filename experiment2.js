@@ -1,9 +1,371 @@
 "use strict";
 const ts = require("typescript");
 const fs = require("fs");
-const sys = require('sys')
-const exec = require('child_process').exec;
 const path = require("path");
+const excel = require('excel4node');
+
+const SyntaxKind = [
+        "Unknown",
+        "EndOfFileToken",
+        "SingleLineCommentTrivia",
+        "MultiLineCommentTrivia",
+        "NewLineTrivia",
+        "WhitespaceTrivia",
+        // We detect and preserve #! on the first line
+        "ShebangTrivia",
+        // We detect and provide better error recovery when we encounter a git merge marker.  This
+        // allows us to edit files with git-conflict markers in them in a much more pleasant manner.
+        "ConflictMarkerTrivia",
+        // Literals
+        "NumericLiteral",
+        "BigIntLiteral",
+        "StringLiteral",
+        "JsxText",
+        "JsxTextAllWhiteSpaces",
+        "RegularExpressionLiteral",
+        "NoSubstitutionTemplateLiteral",
+        // Pseudo-literals
+        "TemplateHead",
+        "TemplateMiddle",
+        "TemplateTail",
+        // Punctuation
+        "OpenBraceToken",
+        "CloseBraceToken",
+        "OpenParenToken",
+        "CloseParenToken",
+        "OpenBracketToken",
+        "CloseBracketToken",
+        "DotToken",
+        "DotDotDotToken",
+        "SemicolonToken",
+        "CommaToken",
+        "LessThanToken",
+        "LessThanSlashToken",
+        "GreaterThanToken",
+        "LessThanEqualsToken",
+        "GreaterThanEqualsToken",
+        "EqualsEqualsToken",
+        "ExclamationEqualsToken",
+        "EqualsEqualsEqualsToken",
+        "ExclamationEqualsEqualsToken",
+        "EqualsGreaterThanToken",
+        "PlusToken",
+        "MinusToken",
+        "AsteriskToken",
+        "AsteriskAsteriskToken",
+        "SlashToken",
+        "PercentToken",
+        "PlusPlusToken",
+        "MinusMinusToken",
+        "LessThanLessThanToken",
+        "GreaterThanGreaterThanToken",
+        "GreaterThanGreaterThanGreaterThanToken",
+        "AmpersandToken",
+        "BarToken",
+        "CaretToken",
+        "ExclamationToken",
+        "TildeToken",
+        "AmpersandAmpersandToken",
+        "BarBarToken",
+        "QuestionToken",
+        "ColonToken",
+        "AtToken",
+        // Assignments
+        "EqualsToken",
+        "PlusEqualsToken",
+        "MinusEqualsToken",
+        "AsteriskEqualsToken",
+        "AsteriskAsteriskEqualsToken",
+        "SlashEqualsToken",
+        "PercentEqualsToken",
+        "LessThanLessThanEqualsToken",
+        "GreaterThanGreaterThanEqualsToken",
+        "GreaterThanGreaterThanGreaterThanEqualsToken",
+        "AmpersandEqualsToken",
+        "BarEqualsToken",
+        "CaretEqualsToken",
+        // Identifiers
+        "Identifier",
+        // Reserved words
+        "BreakKeyword",
+        "CaseKeyword",
+        "CatchKeyword",
+        "ClassKeyword",
+        "ConstKeyword",
+        "ContinueKeyword",
+        "DebuggerKeyword",
+        "DefaultKeyword",
+        "DeleteKeyword",
+        "DoKeyword",
+        "ElseKeyword",
+        "EnumKeyword",
+        "ExportKeyword",
+        "ExtendsKeyword",
+        "FalseKeyword",
+        "FinallyKeyword",
+        "ForKeyword",
+        "FunctionKeyword",
+        "IfKeyword",
+        "ImportKeyword",
+        "InKeyword",
+        "InstanceOfKeyword",
+        "NewKeyword",
+        "NullKeyword",
+        "ReturnKeyword",
+        "SuperKeyword",
+        "SwitchKeyword",
+        "ThisKeyword",
+        "ThrowKeyword",
+        "TrueKeyword",
+        "TryKeyword",
+        "TypeOfKeyword",
+        "VarKeyword",
+        "VoidKeyword",
+        "WhileKeyword",
+        "WithKeyword",
+        // Strict mode reserved words
+        "ImplementsKeyword",
+        "InterfaceKeyword",
+        "LetKeyword",
+        "PackageKeyword",
+        "PrivateKeyword",
+        "ProtectedKeyword",
+        "PublicKeyword",
+        "StaticKeyword",
+        "YieldKeyword",
+        // Contextual keywords
+        "AbstractKeyword",
+        "AsKeyword",
+        "AnyKeyword",
+        "AsyncKeyword",
+        "AwaitKeyword",
+        "BooleanKeyword",
+        "ConstructorKeyword",
+        "DeclareKeyword",
+        "GetKeyword",
+        "InferKeyword",
+        "IsKeyword",
+        "KeyOfKeyword",
+        "ModuleKeyword",
+        "NamespaceKeyword",
+        "NeverKeyword",
+        "ReadonlyKeyword",
+        "RequireKeyword",
+        "NumberKeyword",
+        "ObjectKeyword",
+        "SetKeyword",
+        "StringKeyword",
+        "SymbolKeyword",
+        "TypeKeyword",
+        "UndefinedKeyword",
+        "UniqueKeyword",
+        "UnknownKeyword",
+        "FromKeyword",
+        "GlobalKeyword",
+        "BigIntKeyword",
+        "OfKeyword", // LastKeyword and LastToken and LastContextualKeyword
+
+        // Parse tree nodes
+
+        // Names
+        "QualifiedName",
+        "ComputedPropertyName",
+        // Signature elements
+        "TypeParameter",
+        "Parameter",
+        "Decorator",
+        // TypeMember
+        "PropertySignature",
+        "PropertyDeclaration",
+        "MethodSignature",
+        "MethodDeclaration",
+        "Constructor",
+        "GetAccessor",
+        "SetAccessor",
+        "CallSignature",
+        "ConstructSignature",
+        "IndexSignature",
+        // Type
+        "TypePredicate",
+        "TypeReference",
+        "FunctionType",
+        "ConstructorType",
+        "TypeQuery",
+        "TypeLiteral",
+        "ArrayType",
+        "TupleType",
+        "OptionalType",
+        "RestType",
+        "UnionType",
+        "IntersectionType",
+        "ConditionalType",
+        "InferType",
+        "ParenthesizedType",
+        "ThisType",
+        "TypeOperator",
+        "IndexedAccessType",
+        "MappedType",
+        "LiteralType",
+        "ImportType",
+        // Binding patterns
+        "ObjectBindingPattern",
+        "ArrayBindingPattern",
+        "BindingElement",
+        // Expression
+        "ArrayLiteralExpression",
+        "ObjectLiteralExpression",
+        "PropertyAccessExpression",
+        "ElementAccessExpression",
+        "CallExpression",
+        "NewExpression",
+        "TaggedTemplateExpression",
+        "TypeAssertionExpression",
+        "ParenthesizedExpression",
+        "FunctionExpression",
+        "ArrowFunction",
+        "DeleteExpression",
+        "TypeOfExpression",
+        "VoidExpression",
+        "AwaitExpression",
+        "PrefixUnaryExpression",
+        "PostfixUnaryExpression",
+        "BinaryExpression",
+        "ConditionalExpression",
+        "TemplateExpression",
+        "YieldExpression",
+        "SpreadElement",
+        "ClassExpression",
+        "OmittedExpression",
+        "ExpressionWithTypeArguments",
+        "AsExpression",
+        "NonNullExpression",
+        "MetaProperty",
+        "SyntheticExpression",
+
+        // Misc
+        "TemplateSpan",
+        "SemicolonClassElement",
+        // Element
+        "Block",
+        "VariableStatement",
+        "EmptyStatement",
+        "ExpressionStatement",
+        "IfStatement",
+        "DoStatement",
+        "WhileStatement",
+        "ForStatement",
+        "ForInStatement",
+        "ForOfStatement",
+        "ContinueStatement",
+        "BreakStatement",
+        "ReturnStatement",
+        "WithStatement",
+        "SwitchStatement",
+        "LabeledStatement",
+        "ThrowStatement",
+        "TryStatement",
+        "DebuggerStatement",
+        "VariableDeclaration",
+        "VariableDeclarationList",
+        "FunctionDeclaration",
+        "ClassDeclaration",
+        "InterfaceDeclaration",
+        "TypeAliasDeclaration",
+        "EnumDeclaration",
+        "ModuleDeclaration",
+        "ModuleBlock",
+        "CaseBlock",
+        "NamespaceExportDeclaration",
+        "ImportEqualsDeclaration",
+        "ImportDeclaration",
+        "ImportClause",
+        "NamespaceImport",
+        "NamedImports",
+        "ImportSpecifier",
+        "ExportAssignment",
+        "ExportDeclaration",
+        "NamedExports",
+        "ExportSpecifier",
+        "MissingDeclaration",
+
+        // Module references
+        "ExternalModuleReference",
+
+        // JSX
+        "JsxElement",
+        "JsxSelfClosingElement",
+        "JsxOpeningElement",
+        "JsxClosingElement",
+        "JsxFragment",
+        "JsxOpeningFragment",
+        "JsxClosingFragment",
+        "JsxAttribute",
+        "JsxAttributes",
+        "JsxSpreadAttribute",
+        "JsxExpression",
+
+        // Clauses
+        "CaseClause",
+        "DefaultClause",
+        "HeritageClause",
+        "CatchClause",
+
+        // Property assignments
+        "PropertyAssignment",
+        "ShorthandPropertyAssignment",
+        "SpreadAssignment",
+
+        // Enum
+        "EnumMember",
+        // Top-level nodes
+        "SourceFile",
+        "Bundle",
+        "UnparsedSource",
+        "InputFiles",
+
+        // JSDoc nodes
+        "JSDocTypeExpression",
+        // The * type
+        "JSDocAllType",
+        // The ? type
+        "JSDocUnknownType",
+        "JSDocNullableType",
+        "JSDocNonNullableType",
+        "JSDocOptionalType",
+        "JSDocFunctionType",
+        "JSDocVariadicType",
+        "JSDocComment",
+        "JSDocTypeLiteral",
+        "JSDocSignature",
+        "JSDocTag",
+        "JSDocAugmentsTag",
+        "JSDocClassTag",
+        "JSDocCallbackTag",
+        "JSDocEnumTag",
+        "JSDocParameterTag",
+        "JSDocReturnTag",
+        "JSDocThisTag",
+        "JSDocTypeTag",
+        "JSDocTemplateTag",
+        "JSDocTypedefTag",
+        "JSDocPropertyTag",
+
+        // Synthesized list
+        "SyntaxList",
+
+        // Transformation nodes
+        "NotEmittedStatement",
+        "PartiallyEmittedExpression",
+        "CommaListExpression",
+        "MergeDeclarationMarker",
+        "EndOfDeclarationMarker",
+
+        // Enum value count
+        "Count"];
+
+
+
+
 
 var debugPrint = false;
 
@@ -16,7 +378,7 @@ var removableLexicalKinds = [
 let root = "data/Repos";
 
 //const NUM_FILES_TO_EXPLORE = 4000;
-const NUM_FILES_TO_EXPLORE = 1;
+const NUM_FILES_TO_EXPLORE = 10;
 
 var num_files_explored = 0;
 
@@ -26,15 +388,113 @@ let outerObj = {
 
 fs.readdirSync(root).forEach(org => fs.readdirSync(root + "/" + org).forEach(project => traverseProject(org, project, outerObj)));
 
-console.log(outerObj);
+let workbook = new excel.Workbook();
+let fileCount = 1;
+let totalBothType = 0;
+let tsAnys = 0;
+let jsAnys = 0;
+
+
 
 outerObj.files.forEach(function(fileObj){
+	let worksheet = workbook.addWorksheet("Sheet" + fileCount);
 	console.log(fileObj.filename);
+	worksheet.cell(1,1).string(fileObj.filename);
+
+	worksheet.cell(2, 1).string("name");
+	worksheet.cell(2, 2).string("TS type");
+	worksheet.cell(2, 3).string("TS lineno");
+	worksheet.cell(2, 4).string("TS parent");
+	worksheet.cell(2, 5).string("JS type");
+	worksheet.cell(2, 6).string("JS lineno");
+	
+	let count = 3;
+
+	fileObj.idents.sort(function(x,y){
+		function getPriority(x){
+			if(x.TStype && x.JStype) {
+				if(x.TStype === "any" && x.JStype != "any"){
+					return 1;	
+				}else if(x.TStype !== "any" && x.JStype === "any"){
+					return 2;
+				}
+
+				return 3;
+			}else if(x.TStype){
+				return 4;
+			}else{
+				return 5;
+			}
+
+		}
+
+		let xPrior = getPriority(x);
+		let yPrior = getPriority(y);
+
+		if(xPrior < yPrior){
+			return -1;
+		}else if(xPrior > yPrior){
+			return 1;
+		}
+
+		return 0;
+
+		
+	});
 
 	fileObj.idents.forEach(function (ident){
-		console.log("\t", ident.name, ident.TStype, ident.JStype);
+
+		if(ident.TStype && ident.JStype){
+			totalBothType += 1;
+			if(ident.TStype === "any"){
+				tsAnys += 1;
+			}
+
+			if(ident.JStype === "any"){
+				jsAnys += 1 ;
+			}
+
+		}
+		
+		worksheet.cell(count,1).string(ident.name);
+		if(ident.TStype){
+			worksheet.cell(count,2).string(ident.TStype);
+			worksheet.cell(count,3).number(ident.TSline);
+			worksheet.cell(count,4).string(SyntaxKind[ident.TSparent]);
+		}
+		if(ident.JStype){
+			worksheet.cell(count,5).string(ident.JStype);
+			worksheet.cell(count,6).number(ident.JSline);
+		}
+
+		count += 1;
 	});
+	fileCount +=1;
 });
+
+
+let worksheet = workbook.addWorksheet("Statistics");
+worksheet.cell(1,1).string("Statistics on idents that appear in both TS and JS")
+worksheet.cell(2,2).string("number any types")
+worksheet.cell(2,3).string("number typed")
+worksheet.cell(2,4).string("percent any types")
+worksheet.cell(2,5).string("percent typed")
+
+
+worksheet.cell(3,1).string("TS");
+worksheet.cell(3,2).number(tsAnys);
+worksheet.cell(3,3).number(totalBothType - tsAnys);
+worksheet.cell(3,4).number(tsAnys / totalBothType * 100);
+worksheet.cell(3,5).number((totalBothType - tsAnys) / totalBothType * 100);
+
+worksheet.cell(4,1).string("JS");
+worksheet.cell(4,2).number(jsAnys);
+worksheet.cell(4,3).number(totalBothType - jsAnys);
+worksheet.cell(4,4).number(jsAnys / totalBothType * 100);
+worksheet.cell(4,5).number((totalBothType - jsAnys) / totalBothType * 100);
+
+
+workbook.write("idents.xlsx");
 
 function extensionCheck(names, ext){
        for(let i=0; i<names.length; ++i){
@@ -173,37 +633,16 @@ function extractHelper(inputDirectory, files, fileObjs, numFilesExplored, isTS){
 			let idx = findFile(fileObjs, check.slice(0,-2));
 			let fileObj;
 			if(idx === -1){
-				console.log("file not found");
 				fileObj = {"filename": check.slice(0,-2)};
-				console.log("pushing");
 				fileObjs.push(fileObj);
-				console.log("pushed");
 				idx = fileObjs.length-1;
 				fileObj.idents = [];
 			}else{
-				console.log("file found!");
 				fileObj = fileObjs[idx];
 			}
 
-			console.log("here");
 			extractTokens(sourceFile, fileObj, checker, sourceFile, isTS);
 			fileObjs[idx] = fileObj;	
-
-			/*
-			var obj = {
-				"filename": 
-				"idents": [{
-						"name":
-						"JSsymbol":
-						"TSsymbol":
-						"JStype": 
-						"TStype":
-						"TSline":
-						"JSline":
-						"TSparent":
-					}]
-			}*/
-
 
 		}
 		catch (e) {
@@ -214,12 +653,11 @@ function extractHelper(inputDirectory, files, fileObjs, numFilesExplored, isTS){
 }
 
 function findIdentObj(idents, name, ID, isTS){
-	//console.log("searching through", idents, "for", name);
 	for(let i=0; i<idents.length; i++){
 		if(idents[i].name === name){
 			if(!isTS){
 				return i;
-			}else if(idents[i].JStype !== undefined && idents[i].symbol === ID){
+			}else if(idents[i].JStype !== undefined && (ID !== undefined || idents[i].TStype === undefined)){
 				return i;	
 			}
 		}
@@ -244,20 +682,6 @@ function extractAlignedSequences(inputDirectory, fileObjs, numFilesExplored) {
 	let files = [];
 	let jsFiles = [];
 	walkSync(inputDirectory, files, jsFiles, {"count": 0});
-
-	
-	/*
-	console.log();
-	console.log("midway sanity check");
-	console.log("same num files", files.length === jsFiles.length);
-	console.log("same files", arraysEqual(files.slice(), jsFiles.slice()));
-	console.log();
-
-	console.log("explored", numFilesExplored, "files");
-	jsFiles.sort();
-	files.sort();
-	*/
-
 
 	extractHelper(inputDirectory, jsFiles, fileObjs, numFilesExplored, false);
 	let num =  extractHelper(inputDirectory, files, fileObjs, numFilesExplored, true);
@@ -286,47 +710,44 @@ function extractTokens(tree, fileObj, checker, sourceFile, isTS) {
 
 					let line = sourceFile.getLineAndCharacterOfPosition(child.getStart()).line;
 					let symbol = checker.getSymbolAtLocation(child);
-					if (!symbol) {
-						//console.log("no symbol");
-						console.log("getting index");
+					if (!symbol && !isTS) {
 						let idx = findIdentObj(fileObj.idents, source, undefined, isTS);
-						console.log(idx);
+						console.log("no symbol", source, "any", idx, isTS);
 
 						if(idx === -1){
 							fileObj.idents.push({"name": source});
 							idx = fileObj.idents.length-1;
 						}
 
+						/*
 						if(isTS){
 							fileObj.idents[idx].TStype = "any";
 							fileObj.idents[idx].TSline = line;
 							fileObj.idents[idx].TSsymbol = undefined;
 							fileObj.idents[idx].TSparent = child.parent.kind;
 
-						}else{
+						}else{*/
 							fileObj.idents[idx].JStype = "any";
 							fileObj.idents[idx].JSline = line;
 							fileObj.idents[idx].JSsymbol = undefined;
-						}
+						//}
 
 						break;
 					}
 
 
-					console.log("yes symbol!");
 					let symbolID = ts.getSymbolId(symbol);
 					if(hasSeen(fileObj.idents, source, symbolID, isTS)) continue;
-					console.log(source, "isTS?", isTS, "not seen yet");
 
 					let idx = findIdentObj(fileObj.idents, source, symbolID, isTS);
 					if(idx === -1){
 						fileObj.idents.push({"name": source});
 						idx = fileObj.idents.length-1;
-						console.log(idx, fileObj.idents[idx]);
 					}
 
 
 					let type = checker.typeToString(checker.getTypeOfSymbolAtLocation(symbol, child));
+					console.log(source, type, idx, isTS);
 					if(isTS){
 						fileObj.idents[idx].TStype = type;
 						fileObj.idents[idx].TSline = line;
@@ -379,3 +800,5 @@ function walkSync(dir, filelist, jsfilelist, countObj){
 	return [filelist, jsfilelist];
 }
 ;
+
+
