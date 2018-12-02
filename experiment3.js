@@ -393,9 +393,11 @@ let fileCount = 1;
 let totalBothType = 0;
 let tsAnys = 0;
 let jsAnys = 0;
+let jsAnysPrim = 0;
 
 
 
+var typeMap = new Map();
 outerObj.files.forEach(function(fileObj){
 	let worksheet = workbook.addWorksheet("Sheet" + fileCount);
 	console.log(fileObj.filename);
@@ -442,6 +444,7 @@ outerObj.files.forEach(function(fileObj){
 		
 	});
 
+
 	fileObj.idents.forEach(function (ident){
 
 		if(ident.TStype && ident.JStype){
@@ -452,7 +455,23 @@ outerObj.files.forEach(function(fileObj){
 
 			if(ident.JStype === "any"){
 				jsAnys += 1 ;
+
+				if(ident.TStype !== "any"){
+					let prevVal = typeMap.get(ident.TStype);
+					if(!prevVal){
+						typeMap.set(ident.TStype, 1);
+					}else{
+						typeMap.set(ident.TStype, prevVal+1);
+					}
+				}
 			}
+
+			if(ident.JStype === "any" && ident.TStype !== "boolean" &&
+			   ident.TStype !== "number" && ident.TStype !== "string" &&
+			   !ident.TStype.includes("=>")){
+				jsAnysPrim += 1;
+			}
+
 
 		}
 		
@@ -467,7 +486,7 @@ outerObj.files.forEach(function(fileObj){
 			worksheet.cell(count,6).number(ident.JSline);
 		}
 
-		count += 1;
+		count = count + 1;
 	});
 	fileCount +=1;
 });
@@ -493,8 +512,21 @@ worksheet.cell(4,3).number(totalBothType - jsAnys);
 worksheet.cell(4,4).number(jsAnys / totalBothType * 100);
 worksheet.cell(4,5).number((totalBothType - jsAnys) / totalBothType * 100);
 
+worksheet.cell(5,1).string("JS + prim inf");
+worksheet.cell(5,2).number(jsAnysPrim);
+worksheet.cell(5,3).number(totalBothType - jsAnysPrim);
+worksheet.cell(5,4).number(jsAnysPrim / totalBothType * 100);
+worksheet.cell(5,5).number((totalBothType - jsAnysPrim) / totalBothType * 100);
 
-workbook.write("idents_all.xlsx");
+
+let count = 6;
+typeMap.forEach(function(value, key, map){
+	worksheet.cell(count,1).string(key);
+	worksheet.cell(count,2).number(value);
+	count += 1;
+});
+
+workbook.write("idents_all_prim.xlsx");
 
 function extensionCheck(names, ext){
        for(let i=0; i<names.length; ++i){

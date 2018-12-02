@@ -16,7 +16,7 @@ var removableLexicalKinds = [
 let root = "data/Repos";
 
 //const NUM_FILES_TO_EXPLORE = 4000;
-const NUM_FILES_TO_EXPLORE = 300;
+const NUM_FILES_TO_EXPLORE = 1;
 
 var num_files_explored = 0;
 
@@ -86,12 +86,12 @@ console.log("all ts files end in .ts", extensionCheck(tsFnames, "ts"))
 console.log("same files:",arraysEqual(tsFnames, jsFnames));
 
 function extensionCheck(names, ext){
-	for(let i=0; i<names.length; ++i){
-		if(names[i].slice(-2) !== ext){
-			return false;
-		}
-	}
-	return true;
+       for(let i=0; i<names.length; ++i){
+               if(names[i].slice(-2) !== ext){
+                       return false;
+               }
+       }
+       return true;
 }
 
 function arraysEqual(a, b) {
@@ -123,16 +123,18 @@ function arraysEqual(a, b) {
 }
 
 
-/*
+
 console.log("\ntsfiles");
 outerObj.files.forEach(function(fileObj){
 	console.log(fileObj.filename);
+	console.log("typed", fileObj.typed_idents);
 });
 
 console.log("\njsfiles");
 outerObjJS.files.forEach(function(fileObj){
 	console.log(fileObj.filename);
-});*/
+	console.log("typed", fileObj.typed_idents);
+});
 
 
 
