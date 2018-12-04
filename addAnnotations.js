@@ -129,6 +129,27 @@ function extractAlignedSequences(inputDirectory) {
 		}
 	}
 }
+
+function addAnnotation(contents, child, source){
+	let start = contents.str.substr(0, child.getEnd()+2).indexOf(source, child.getStart()-2);
+	let endPlus = 3;
+
+	while(start === -1 && endPlus < 20){
+		start = contents.str.substr(0, child.getEnd()+endPlus).indexOf(source);
+		endPlus += 1;
+	}
+
+	if(start === -1){
+		return;
+	}
+
+	let end = start + source.length;
+
+	contents.str = contents.str.substr(0, start) + deepTypes[deepTypeIdx].substr(1, deepTypes[deepTypeIdx].length-2) + contents.str.substr(end);
+	deepTypeIdx += 1;
+	console.log(source, start, end);
+}
+
 function extractTokens(tree, checker, memS, memT, memP, contents) {
 	var justPopped = false;
 	for (var i in tree.getChildren()) {
@@ -219,38 +240,13 @@ function extractTokens(tree, checker, memS, memT, memP, contents) {
 						memT[index] = "$" + source + "$"
 						memP[index] = "$" + source + "$"
 
-						let start = contents.str.substr(0, child.getEnd()+2).indexOf(source, child.getStart()-2);
-						let startPlus = 3;
-						let endPlus = 3;
-						while(start === -1 && startPlus < 15){
-							start = contents.str.substr(0, child.getEnd()+endPlus).indexOf(source, child.getStart()-startPlus);
-							startPlus += 1;
-							endPlus += 1;
-						}
-
-						let end = start + source.length;
-
-						contents.str = contents.str.substr(0, start) + deepTypes[deepTypeIdx].substr(1, deepTypes[deepTypeIdx].length-2) + contents.str.substr(end);
-						deepTypeIdx += 1;
-						console.log(source, start, end);
+						addAnnotation(contents, child, source);	
 					}
 					else {
 						memT[memT.length - 1] = "$" + source + "$";
 						memP[memP.length - 1] = "$" + source + "$";
-						let start = contents.str.substr(0, child.getEnd()+2).indexOf(source, child.getStart()-2);
-						let startPlus = 3;
-						let endPlus = 3;
-						while(start === -1 && startPlus < 15){
-							start = contents.str.substr(0, child.getEnd()+2).indexOf(source, child.getStart()-startPlus);
-							startPlus += 1;
-							endPlus += 1;
-						}
-
-						let end = start + source.length;
-
-						contents.str = contents.str.substr(0, start) + deepTypes[deepTypeIdx].substr(1, deepTypes[deepTypeIdx].length-2) + contents.str.substr(end);
-						deepTypeIdx += 1;
-						console.log(source, start, end);
+				
+						addAnnotation(contents, child, source);
 					}
 					justPopped = true;
 					continue;
