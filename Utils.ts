@@ -56,7 +56,7 @@ export function getTypesForDirectory(inputDirectory, filesToProcess, returnObj, 
 			if (relativePath.startsWith("..")) continue;
 
 			let idx = returnObj.files.findIndex(function(elem) {
-				return elem === langStrippedfname;
+				return elem.filename === langStrippedfname;
 			});
 
 			let fileObj;
@@ -64,7 +64,7 @@ export function getTypesForDirectory(inputDirectory, filesToProcess, returnObj, 
 				fileObj = {"filename": langStrippedfname};
 				fileObj.idents = [];
 				returnObj.files.push(fileObj);
-				idx = returnObj.length-1;
+				idx = returnObj.files.length-1;
 			}else{
 				fileObj = returnObj.files[idx];
 			}
@@ -81,10 +81,10 @@ export function getTypesForDirectory(inputDirectory, filesToProcess, returnObj, 
 export function getTypesForFile(tree, fileObj, checker, sourceFile, isTS) {
 	const keywords = ["async", "await", "break", "continue", "class", "extends", "constructor", "super", "extends", "const", "let", "var", "debugger", "delete", "do", "while", "export", "import", "for", "each", "in", "of", "function", "return", "get", "set", "if", "else", "instanceof", "typeof", "null", "undefined", "switch", "case", "default", "this", "true", "false", "try", "catch", "finally", "void", "yield", "any", "boolean", "null", "never", "number", "string", "symbol", "undefined", "void", "as", "is", "enum", "type", "interface", "abstract", "implements", "static", "readonly", "private", "protected", "public", "declare", "module", "namespace", "require", "from", "of", "package"];
 
-	let symbolID;
+	let symbol, source;
 
 	function findIdentObj(elem){
-		return elem === name && (!isTS || elem.TSSymbol === symbolID);
+		return elem.name === source && (!isTS || elem.TSsymbol === ts.getSymbolId(symbol));
 		//TODO: figure out if all JS types don't have symbols?
 	}
 
@@ -96,51 +96,48 @@ export function getTypesForFile(tree, fileObj, checker, sourceFile, isTS) {
 			continue;
 		}
 		if (child.getChildCount() == 0) {
-			var source = child.getText();
+			source = child.getText();
 
 			if (child.kind === ts.SyntaxKind.Identifier) {
 
 				if(keywords.indexOf(source) >= 0) continue;
 
 				try {
+					let line = sourceFile.getLineAndCharacterOfPosition(child.getStart()).line + 1;
+					symbol = checker.getSymbolAtLocation(child);
+					if(symbol) var symbolID = ts.getSymbolId(symbol);
 
-					let line = sourceFile.getLineAndCharacterOfPosition(child.getStart()).line;
-					let symbol = checker.getSymbolAtLocation(child);
 					let idx = fileObj.idents.findIndex(findIdentObj);	
 
-					if (!symbol && !isTS) {
-						console.log("no symbol", source, "any", idx, isTS);
-
-						if(idx === -1){
-							fileObj.idents.push({"name": source});
-							idx = fileObj.idents.length-1;
-						}
-
-						fileObj.idents[idx].JStype = "any";
-						fileObj.idents[idx].JSline = line;
-						fileObj.idents[idx].JSsymbol = undefined;
-
-						break;
+					//TODO: delete this
+					if(source === "item" && fileObj.filename.includes("StateMachine")){
+						console.log(symbolID, line);
 					}
-
-
-					symbolID = ts.getSymbolId(symbol);
 
 					if(idx === -1){
 						fileObj.idents.push({"name": source});
 						idx = fileObj.idents.length-1;
 					}
 
-					if(fileObj.idents[idx].TStype !== undefined) continue; //no need to fill in info for the same ident more than once
+					if(!symbol && !isTS) {
+						console.log("no symbol", source, sourceFile.getSourceFile().fileName, isTS);
+
+						fileObj.idents[idx].JStype = "any";
+						fileObj.idents[idx].JSline = line;
+						fileObj.idents[idx].JSsymbol = undefined;
+						
+						continue;
+					}
+
 
 					let type = checker.typeToString(checker.getTypeOfSymbolAtLocation(symbol, child));
-					if(isTS){
+					if(isTS && fileObj.idents[idx].TStype === undefined){
 						fileObj.idents[idx].TStype = type;
 						fileObj.idents[idx].TSline = line;
 						fileObj.idents[idx].TSsymbol = symbolID;
 						fileObj.idents[idx].TSparent = tree.kind + 2;
 
-					}else{
+					}else if(fileObj.idents[idx].JStype === undefined){
 						fileObj.idents[idx].JStype = type;
 						fileObj.idents[idx].JSline = line;
 						fileObj.idents[idx].JSsymbol = symbolID;
@@ -153,3 +150,40 @@ export function getTypesForFile(tree, fileObj, checker, sourceFile, isTS) {
 		getTypesForFile(child, fileObj, checker, sourceFile, isTS);
 	}
 }
+
+export function getFilesToProcess(dir, filelist, jsfilelist, langReplacements){
+	var fs = fs || require('fs'), files = fs.readdirSync(dir);
+	filelist = filelist || [];
+	for(let i=0; i<files.length; i++){
+		let file = files[i];
+		let fullPath = path.join(dir, file);
+		try {
+			let jsName;
+			for(const replacement of langReplacements){
+				let _ts = replacement[0];
+				let _js = replacement[1];
+				jsName = fullPath.replace(_ts, _js);
+			}
+
+			jsName = jsName.replace(".ts", ".js");
+
+			if (fs.statSync(fullPath).isDirectory()) {
+				if (file != ".git")
+					var out = getFilesToProcess(dir + '/' + file, filelist, jsfilelist, langReplacements);
+				filelist = out[0];
+				jsfilelist = out[1];
+			}
+			else if (file.endsWith('.ts') && !file.endsWith('.d.ts') /*&& fs.existsSync(jsName)*/ && fs.statSync(fullPath).size < 1*1000*1000){
+				filelist.push(fullPath);
+				jsfilelist.push(jsName);
+
+			}
+		}
+		catch (e) {
+		}
+	}
+	return [filelist, jsfilelist];
+}
+;
+
+
