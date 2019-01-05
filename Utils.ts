@@ -7,6 +7,14 @@ var removableLexicalKinds = [
 	ts.SyntaxKind.WhitespaceTrivia
 ];
 
+export var excludeAnys = [
+	"TypeParameter",
+	"TypeReference",
+	"InterfaceDeclaration",
+	"ImportSpecifier",
+	"TypeAliasDeclaration"
+]
+
 function inFiles(files, filename){
 	for(let i=0; i<files.length; i++){
 		let file = files[i];	
